@@ -10,11 +10,25 @@
  *   cppcheck-suppress nullPointer
  */
 
+/*  struct list_head {
+ *    struct list_head *prev;
+ *    struct list_head *next;
+ *  }
+ */
 
+/*  typedef struct {
+ *    char *value;
+ *    struct list_head list;
+ *  } element_t;
+ */
 /* Create an empty queue */
 struct list_head *q_new()
 {
-    return NULL;
+    struct list_head *head =
+        (struct list_head *) malloc(sizeof(struct list_head));
+    head->prev = head;
+    head->next = head;
+    return head;
 }
 
 /* Free all storage used by queue */
@@ -23,6 +37,20 @@ void q_free(struct list_head *head) {}
 /* Insert an element at head of queue */
 bool q_insert_head(struct list_head *head, char *s)
 {
+    element_t *element = (element_t *) malloc(sizeof(element_t));
+    if (!element)
+        return false;
+    element->value = malloc(strlen(s) + 1);
+    if (!element->value) {
+        free(element);
+        return false;
+    }
+    /*  str c py(element->value, s);
+     */
+    element->list.next = head->next;
+    element->list.prev = head;
+    head->next = &element->list;
+    element->list.next->prev = &element->list;
     return true;
 }
 
