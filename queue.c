@@ -10,49 +10,148 @@
  *   cppcheck-suppress nullPointer
  */
 
+/*  struct list_head {
+ *    struct list_head *prev;
+ *    struct list_head *next;
+ *  }
+ */
+
+/*  typedef struct {
+ *    char *value;
+ *    struct list_head list;
+ *  } element_t;
+ */
 /* Create an empty queue */
 struct list_head *q_new()
 {
-    return NULL;
+    struct list_head *head =
+        (struct list_head *) malloc(sizeof(struct list_head));
+    if (head) {
+        head->prev = head;
+        head->next = head;
+    }
+    return head;
 }
 
 /* Free all storage used by queue */
-void q_free(struct list_head *head) {}
+void q_free(struct list_head *head)
+{
+    if (!head)
+        return;
+    if (list_empty(head)) {
+        free(head);
+        return;
+    }
+    while (!list_empty(head)) {
+        struct list_head *curr = head->next;
+        list_del(curr);
+        element_t *element = container_of(curr, element_t, list);
+        q_release_element(element);
+    }
+    free(head);
+}
 
 /* Insert an element at head of queue */
 bool q_insert_head(struct list_head *head, char *s)
 {
+    if (!s)
+        return false;
+    const char *cs = s;
+    element_t *element = (element_t *) malloc(sizeof(element_t));
+    if (!element)
+        return false;
+    element->value = strdup(cs);
+    if (!element->value) {
+        free(element);
+        return false;
+    }
+    element->list.next = head->next;
+    element->list.prev = head;
+    head->next = &element->list;
+    element->list.next->prev = &element->list;
     return true;
 }
 
 /* Insert an element at tail of queue */
 bool q_insert_tail(struct list_head *head, char *s)
 {
+    if (!s)
+        return false;
+    const char *cs = s;
+    element_t *element = (element_t *) malloc(sizeof(element_t));
+    if (!element)
+        return false;
+    element->value = strdup(cs);
+    if (!element->value) {
+        free(element);
+        return false;
+    }
+    element->list.prev = head->prev;
+    element->list.next = head;
+    head->prev = &element->list;
+    element->list.prev->next = &element->list;
     return true;
 }
 
 /* Remove an element from head of queue */
 element_t *q_remove_head(struct list_head *head, char *sp, size_t bufsize)
 {
-    return NULL;
+    if (!head || list_empty(head))
+        return NULL;
+    element_t *curr = container_of(head->next, element_t, list);
+    curr->list.next->prev = head;
+    head->next = curr->list.next;
+    curr->list.next = curr->list.prev = NULL;
+    if (sp && bufsize > 0) {
+        strncpy(sp, curr->value, bufsize - 1);
+        sp[bufsize - 1] = '\0';
+    }
+    return curr;
 }
 
 /* Remove an element from tail of queue */
 element_t *q_remove_tail(struct list_head *head, char *sp, size_t bufsize)
 {
-    return NULL;
+    if (!head || list_empty(head))
+        return NULL;
+    element_t *curr = container_of(head->prev, element_t, list);
+    curr->list.prev->next = head;
+    head->prev = curr->list.prev;
+    curr->list.next = curr->list.prev = NULL;
+    if (sp && bufsize > 0) {
+        strncpy(sp, curr->value, bufsize - 1);
+        sp[bufsize - 1] = '\0';
+    }
+    return curr;
 }
 
 /* Return number of elements in queue */
 int q_size(struct list_head *head)
 {
-    return -1;
+    if (!head)
+        return 0;
+    int len = 0;
+    struct list_head *li;
+    list_for_each (li, head)
+        len++;
+    return len;
 }
 
 /* Delete the middle node in queue */
 bool q_delete_mid(struct list_head *head)
 {
-    // https://leetcode.com/problems/delete-the-middle-node-of-a-linked-list/
+    // https://leetcode.com/problems/delete-the-middle-node-of-a-linked-list
+    if (!head || list_empty(head))
+        return false;
+    struct list_head *left, *right;
+    left = head->prev;
+    right = head->next;
+    while (left != right && left->prev != right) {
+        left = left->prev;
+        right = right->next;
+    }
+    list_del(left);
+    q_release_element(list_entry(left, element_t, list));
     return true;
 }
 
@@ -67,15 +166,70 @@ bool q_delete_dup(struct list_head *head)
 void q_swap(struct list_head *head)
 {
     // https://leetcode.com/problems/swap-nodes-in-pairs/
+    if (!head || head->next == head->prev) {
+        return;
+    }
+    struct list_head *curr, *next;
+    curr = head->next;
+    next = curr->next;
+    while (curr != head && next != head) {
+        curr->prev->next = next;
+        next->next->prev = curr;
+        curr->next = next->next;
+        next->prev = curr->prev;
+        curr->prev = next;
+        next->next = curr;
+        curr = curr->next;
+        next = curr->next;
+    }
 }
 
 /* Reverse elements in queue */
-void q_reverse(struct list_head *head) {}
+void q_reverse(struct list_head *head)
+{
+    if (!head || head->next == head->prev)
+        return;
+    struct list_head *node = NULL, *safe;
+    list_for_each_safe (node, safe, head) {
+        list_move(node, head);
+    }
+}
 
 /* Reverse the nodes of the list k at a time */
 void q_reverseK(struct list_head *head, int k)
 {
     // https://leetcode.com/problems/reverse-nodes-in-k-group/
+    // Assume k is a positive integer and is less than or equal to the length of
+    // the linked list.
+    if (!head || head->prev == head->next)
+        return;
+    int len = 0;
+    struct list_head *li = head->next, *start = head, *stop;
+    while (li != head) {
+        len++;
+        if (len == k) {
+            stop = li->next;
+            struct list_head *curr = start->next, *next = curr->next,
+                             *next_start = stop;
+            while (curr != stop) {
+                while (next != stop) {
+                    curr->prev->next = next;
+                    next->next->prev = curr;
+                    curr->next = next->next;
+                    next->prev = curr->prev;
+                    curr->prev = next;
+                    next->next = curr;
+                    next = curr->next;
+                }
+                curr = start->next;
+                next = curr->next;
+                stop = stop->prev;
+            }
+            len = 0;
+            li = start = next_start->prev;
+        }
+        li = li->next;
+    }
 }
 
 /* Sort elements of queue in ascending/descending order */
@@ -86,7 +240,26 @@ void q_sort(struct list_head *head, bool descend) {}
 int q_ascend(struct list_head *head)
 {
     // https://leetcode.com/problems/remove-nodes-from-linked-list/
-    return 0;
+    int count = 1;
+    if (!head || head->prev == head->next)
+        return 0;
+    struct list_head *curr = head->prev, *min = head->prev, *prev = curr->prev;
+    while (curr->prev != head) {
+        element_t *previous;
+        const element_t *min_element;
+        previous = list_entry(prev, element_t, list);
+        min_element = list_entry(min, element_t, list);
+        if (strcmp(previous->value, min_element->value) > 0) {
+            list_del(prev);
+            q_release_element(previous);
+            prev = curr->prev;
+        } else {
+            min = curr = prev;
+            count++;
+            prev = curr->prev;
+        }
+    }
+    return count;
 }
 
 /* Remove every node which has a node with a strictly greater value anywhere to
@@ -94,7 +267,26 @@ int q_ascend(struct list_head *head)
 int q_descend(struct list_head *head)
 {
     // https://leetcode.com/problems/remove-nodes-from-linked-list/
-    return 0;
+    int count = 1;
+    if (!head || head->prev == head->next)
+        return 0;
+    struct list_head *curr = head->prev, *max = head->prev, *prev = curr->prev;
+    while (curr->prev != head) {
+        element_t *previous;
+        const element_t *max_element;
+        previous = list_entry(prev, element_t, list);
+        max_element = list_entry(max, element_t, list);
+        if (strcmp(previous->value, max_element->value) < 0) {
+            list_del(prev);
+            q_release_element(previous);
+            prev = curr->prev;
+        } else {
+            max = curr = prev;
+            count++;
+            prev = curr->prev;
+        }
+    }
+    return count;
 }
 
 /* Merge all the queues into one sorted queue, which is in ascending/descending
