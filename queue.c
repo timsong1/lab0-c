@@ -54,7 +54,7 @@ void q_free(struct list_head *head)
 /* Insert an element at head of queue */
 bool q_insert_head(struct list_head *head, char *s)
 {
-    if (!s)
+    if (!head || !s)
         return false;
     const char *cs = s;
     element_t *element = (element_t *) malloc(sizeof(element_t));
@@ -75,7 +75,7 @@ bool q_insert_head(struct list_head *head, char *s)
 /* Insert an element at tail of queue */
 bool q_insert_tail(struct list_head *head, char *s)
 {
-    if (!s)
+    if (!head || !s)
         return false;
     const char *cs = s;
     element_t *element = (element_t *) malloc(sizeof(element_t));
@@ -231,9 +231,75 @@ void q_reverseK(struct list_head *head, int k)
         li = li->next;
     }
 }
+struct list_head *merge_sort(struct list_head *head, bool descend)
+{
+    if (!head || !head->next)
+        return head;
+    struct list_head *slow, *fast, *left, *right;
+    slow = fast = left = head;
+    // left = head->next;
+    while (fast && fast->next && fast->next->next) {
+        slow = slow->next;
+        fast = fast->next->next;
+    }
+    right = slow->next;
+    slow->next = NULL;
+    right->prev = NULL;
+    left = merge_sort(left, descend);
+    right = merge_sort(right, descend);
+    struct list_head **ptr = &head;
+    for (;;) {
+        if (!left) {
+            *ptr = right;
+            break;
+        }
+        if (!right) {
+            *ptr = left;
+            break;
+        }
+        if (strcmp(list_entry(left, element_t, list)->value,
+                   list_entry(right, element_t, list)->value) > 0) {
+            if (descend) {
+                *ptr = left;
+                ptr = &left->next;
+                left = left->next;
+            } else {
+                *ptr = right;
+                ptr = &right->next;
+                right = right->next;
+            }
+        } else {
+            if (descend) {
+                *ptr = right;
+                ptr = &right->next;
+                right = right->next;
+            } else {
+                *ptr = left;
+                ptr = &left->next;
+                left = left->next;
+            }
+        }
+    }
+    return head;
+}
 
 /* Sort elements of queue in ascending/descending order */
-void q_sort(struct list_head *head, bool descend) {}
+void q_sort(struct list_head *head, bool descend)
+{
+    if (!head || head->next == head->prev)
+        return;
+    head->prev->next = NULL;
+    head->next = merge_sort(head->next, descend);
+    // re-link prev pointer
+    struct list_head *li = head->next, *prev = head;
+    while (li) {
+        li->prev = prev;
+        li = li->next;
+        prev = prev->next;
+    }
+    prev->next = head;
+    head->prev = prev;
+}
 
 /* Remove every node which has a node with a strictly less value anywhere to
  * the right side of it */
