@@ -237,7 +237,6 @@ struct list_head *merge_sort(struct list_head *head, bool descend)
         return head;
     struct list_head *slow, *fast, *left, *right;
     slow = fast = left = head;
-    // left = head->next;
     while (fast && fast->next && fast->next->next) {
         slow = slow->next;
         fast = fast->next->next;
@@ -360,5 +359,62 @@ int q_descend(struct list_head *head)
 int q_merge(struct list_head *head, bool descend)
 {
     // https://leetcode.com/problems/merge-k-sorted-lists/
-    return 0;
+    if (!head || list_empty(head))
+        return 0;
+    queue_contex_t *context = list_entry(head->next, queue_contex_t, chain);
+    struct list_head *first_queue;
+    context->q->prev->next = NULL;
+    struct list_head *li = context->chain.next;
+    while (li != head) {
+        first_queue = context->q->next;
+        queue_contex_t *li_context = list_entry(li, queue_contex_t, chain);
+        li_context->q->prev->next = NULL;
+        struct list_head *curr = li_context->q->next;
+        struct list_head **ptr = &context->q->next;
+        for (;;) {
+            if (!curr) {
+                *ptr = first_queue;
+                break;
+            }
+            if (!first_queue) {
+                *ptr = curr;
+                break;
+            }
+            if (strcmp(list_entry(first_queue, element_t, list)->value,
+                       list_entry(curr, element_t, list)->value) > 0) {
+                if (descend) {
+                    *ptr = first_queue;
+                    ptr = &first_queue->next;
+                    first_queue = first_queue->next;
+                } else {
+                    *ptr = curr;
+                    ptr = &curr->next;
+                    curr = curr->next;
+                }
+            } else {
+                if (descend) {
+                    *ptr = curr;
+                    ptr = &curr->next;
+                    curr = curr->next;
+                } else {
+                    *ptr = first_queue;
+                    ptr = &first_queue->next;
+                    first_queue = first_queue->next;
+                }
+            }
+        }
+        context->size += li_context->size;
+        INIT_LIST_HEAD(li_context->q);
+        li_context->size = 0;
+        li = li->next;
+    }
+    struct list_head *index = context->q, *next = index->next;
+    while (next) {
+        next->prev = index;
+        index = index->next;
+        next = index->next;
+    }
+    context->q->prev = index;
+    index->next = context->q;
+    return context->size;
 }
