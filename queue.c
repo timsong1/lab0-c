@@ -65,10 +65,7 @@ bool q_insert_head(struct list_head *head, char *s)
         free(element);
         return false;
     }
-    element->list.next = head->next;
-    element->list.prev = head;
-    head->next = &element->list;
-    element->list.next->prev = &element->list;
+    list_add(&element->list, head);
     return true;
 }
 
@@ -86,10 +83,7 @@ bool q_insert_tail(struct list_head *head, char *s)
         free(element);
         return false;
     }
-    element->list.prev = head->prev;
-    element->list.next = head;
-    head->prev = &element->list;
-    element->list.prev->next = &element->list;
+    list_add_tail(&element->list, head);
     return true;
 }
 
@@ -154,11 +148,50 @@ bool q_delete_mid(struct list_head *head)
     q_release_element(list_entry(left, element_t, list));
     return true;
 }
-
+void delete_linked_list(struct list_head *head,
+                        struct list_head *from,
+                        struct list_head *to)
+{
+    struct list_head *node, *safe;
+    bool flag = false;
+    list_for_each_safe (node, safe, head) {
+        if (node == to)
+            return;
+        if (node == from)
+            flag = true;
+        if (flag) {
+            list_del(node);
+            q_release_element(list_entry(node, element_t, list));
+        }
+    }
+}
 /* Delete all nodes that have duplicate string */
 bool q_delete_dup(struct list_head *head)
 {
     // https://leetcode.com/problems/remove-duplicates-from-sorted-list-ii/
+    if (!head || list_empty(head))
+        return false;
+    if (head->next == head->prev)
+        return true;
+    struct list_head *curr = head->next, *next = curr->next;
+    while (curr != head && next != head) {
+        const element_t *element = list_entry(curr, element_t, list);
+        if (strcmp(element->value, list_entry(next, element_t, list)->value) ==
+            0) {
+            while (next != head) {
+                if (strcmp(list_entry(next, element_t, list)->value,
+                           element->value) != 0)
+                    break;
+                next = next->next;
+            }
+            delete_linked_list(head, curr, next);
+            curr = next;
+            next = next->next;
+            continue;
+        }
+        curr = curr->next;
+        next = curr->next;
+    }
     return true;
 }
 
